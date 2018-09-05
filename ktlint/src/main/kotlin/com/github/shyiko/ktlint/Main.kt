@@ -735,6 +735,14 @@ object Main {
         }
     }
 
+    private fun <T> Sequence<Callable<T>>.simpleParallel(
+        cb: (T) -> Unit,
+        numberOfThreads: Int = Runtime.getRuntime().availableProcessors()
+    ) {
+        val executorService = Executors.newFixedThreadPool(numberOfThreads)
+        this.map { executorService.submit(it) }.forEach { cb(it.get()) }
+    }
+
     private fun <T> Sequence<Callable<T>>.parallel(
         cb: (T) -> Unit,
         numberOfThreads: Int = Runtime.getRuntime().availableProcessors()
