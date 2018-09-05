@@ -237,120 +237,123 @@ object Main {
 
     @JvmStatic
     fun main(args: Array<String>) {
-        parseCmdLine(args)
-        if (version) {
-            println(getImplementationVersion())
-            exitProcess(0)
-        }
-        if (installGitPreCommitHook) {
-            installGitPreCommitHook()
-            if (!apply) {
-                exitProcess(0)
-            }
-        }
-        if (installGitPrePushHook) {
-            installGitPrePushHook()
-            if (!apply) {
-                exitProcess(0)
-            }
-        }
-        if (apply || applyToProject) {
-            applyToIDEA()
-            exitProcess(0)
-        }
-        if (printAST) {
-            printAST()
-            exitProcess(0)
-        }
-        val start = System.currentTimeMillis()
-        // load 3rd party ruleset(s) (if any)
-        val dependencyResolver = lazy(LazyThreadSafetyMode.NONE) { buildDependencyResolver() }
-        if (!rulesets.isEmpty()) {
-            loadJARs(dependencyResolver, rulesets)
-        }
-        // standard should go first
-        val ruleSetProviders = ServiceLoader.load(RuleSetProvider::class.java)
-            .map { it.get().id to it }
-            .sortedBy { if (it.first == "standard") "\u0000${it.first}" else it.first }
-        if (debug) {
-            ruleSetProviders.forEach { System.err.println("[DEBUG] Discovered ruleset \"${it.first}\"") }
-        }
-        val tripped = AtomicBoolean()
-        val reporter = loadReporter(dependencyResolver) { tripped.get() }
-        val resolveUserData = userDataResolver()
-        data class LintErrorWithCorrectionInfo(val err: LintError, val corrected: Boolean)
-        fun process(fileName: String, fileContent: String): List<LintErrorWithCorrectionInfo> {
-            if (debug) {
-                System.err.println("[DEBUG] Checking ${if (fileName != "<text>") File(fileName).location() else fileName}")
-            }
-            val result = ArrayList<LintErrorWithCorrectionInfo>()
-            val userData = resolveUserData(fileName)
-            if (format) {
-                val formattedFileContent = try {
-                    format(fileName, fileContent, ruleSetProviders.map { it.second.get() }, userData) { err, corrected ->
-                        if (!corrected) {
-                            result.add(LintErrorWithCorrectionInfo(err, corrected))
-                            tripped.set(true)
-                        }
-                    }
-                } catch (e: Exception) {
-                    result.add(LintErrorWithCorrectionInfo(e.toLintError(), false))
-                    tripped.set(true)
-                    fileContent // making sure `cat file | ktlint --stdint > file` is (relatively) safe
-                }
-                if (stdin) {
-                    println(formattedFileContent)
-                } else {
-                    if (fileContent !== formattedFileContent) {
-                        File(fileName).writeText(formattedFileContent, charset("UTF-8"))
-                    }
-                }
-            } else {
-                try {
-                    lint(fileName, fileContent, ruleSetProviders.map { it.second.get() }, userData) { err ->
-                        result.add(LintErrorWithCorrectionInfo(err, false))
-                        tripped.set(true)
-                    }
-                } catch (e: Exception) {
-                    result.add(LintErrorWithCorrectionInfo(e.toLintError(), false))
-                    tripped.set(true)
-                }
-            }
-            return result
-        }
-        val (fileNumber, errorNumber) = Pair(AtomicInteger(), AtomicInteger())
-        fun report(fileName: String, errList: List<LintErrorWithCorrectionInfo>) {
-            fileNumber.incrementAndGet()
-            val errListLimit = minOf(errList.size, maxOf(limit - errorNumber.get(), 0))
-            errorNumber.addAndGet(errListLimit)
-            reporter.before(fileName)
-            errList.head(errListLimit).forEach { (err, corrected) ->
-                reporter.onLintError(
-                    fileName,
-                    if (!err.canBeAutoCorrected) err.copy(detail = err.detail + " (cannot be auto-corrected)") else err,
-                    corrected
-                )
-            }
-            reporter.after(fileName)
-        }
-        reporter.beforeAll()
-        if (stdin) {
-            report("<text>", process("<text>", String(System.`in`.readBytes())))
-        } else {
-            fileSequence()
-                .takeWhile { errorNumber.get() < limit }
-                .map { file -> Callable { file to process(file.path, file.readText()) } }
-                .parallel({ (file, errList) -> report(file.location(), errList) })
-        }
-        reporter.afterAll()
-        if (debug) {
-            System.err.println("[DEBUG] ${
-                System.currentTimeMillis() - start
-            }ms / $fileNumber file(s) / $errorNumber error(s)")
-        }
-        if (tripped.get()) {
-            exitProcess(1)
-        }
+        val callable = Callable { 1 }
+
+        listOf<Callable<Int>>(callable, callable).asSequence().parallel({ throw RuntimeException() }, 1)
+//        parseCmdLine(args)
+//        if (version) {
+//            println(getImplementationVersion())
+//            exitProcess(0)
+//        }
+//        if (installGitPreCommitHook) {
+//            installGitPreCommitHook()
+//            if (!apply) {
+//                exitProcess(0)
+//            }
+//        }
+//        if (installGitPrePushHook) {
+//            installGitPrePushHook()
+//            if (!apply) {
+//                exitProcess(0)
+//            }
+//        }
+//        if (apply || applyToProject) {
+//            applyToIDEA()
+//            exitProcess(0)
+//        }
+//        if (printAST) {
+//            printAST()
+//            exitProcess(0)
+//        }
+//        val start = System.currentTimeMillis()
+//        // load 3rd party ruleset(s) (if any)
+//        val dependencyResolver = lazy(LazyThreadSafetyMode.NONE) { buildDependencyResolver() }
+//        if (!rulesets.isEmpty()) {
+//            loadJARs(dependencyResolver, rulesets)
+//        }
+//        // standard should go first
+//        val ruleSetProviders = ServiceLoader.load(RuleSetProvider::class.java)
+//            .map { it.get().id to it }
+//            .sortedBy { if (it.first == "standard") "\u0000${it.first}" else it.first }
+//        if (debug) {
+//            ruleSetProviders.forEach { System.err.println("[DEBUG] Discovered ruleset \"${it.first}\"") }
+//        }
+//        val tripped = AtomicBoolean()
+//        val reporter = loadReporter(dependencyResolver) { tripped.get() }
+//        val resolveUserData = userDataResolver()
+//        data class LintErrorWithCorrectionInfo(val err: LintError, val corrected: Boolean)
+//        fun process(fileName: String, fileContent: String): List<LintErrorWithCorrectionInfo> {
+//            if (debug) {
+//                System.err.println("[DEBUG] Checking ${if (fileName != "<text>") File(fileName).location() else fileName}")
+//            }
+//            val result = ArrayList<LintErrorWithCorrectionInfo>()
+//            val userData = resolveUserData(fileName)
+//            if (format) {
+//                val formattedFileContent = try {
+//                    format(fileName, fileContent, ruleSetProviders.map { it.second.get() }, userData) { err, corrected ->
+//                        if (!corrected) {
+//                            result.add(LintErrorWithCorrectionInfo(err, corrected))
+//                            tripped.set(true)
+//                        }
+//                    }
+//                } catch (e: Exception) {
+//                    result.add(LintErrorWithCorrectionInfo(e.toLintError(), false))
+//                    tripped.set(true)
+//                    fileContent // making sure `cat file | ktlint --stdint > file` is (relatively) safe
+//                }
+//                if (stdin) {
+//                    println(formattedFileContent)
+//                } else {
+//                    if (fileContent !== formattedFileContent) {
+//                        File(fileName).writeText(formattedFileContent, charset("UTF-8"))
+//                    }
+//                }
+//            } else {
+//                try {
+//                    lint(fileName, fileContent, ruleSetProviders.map { it.second.get() }, userData) { err ->
+//                        result.add(LintErrorWithCorrectionInfo(err, false))
+//                        tripped.set(true)
+//                    }
+//                } catch (e: Exception) {
+//                    result.add(LintErrorWithCorrectionInfo(e.toLintError(), false))
+//                    tripped.set(true)
+//                }
+//            }
+//            return result
+//        }
+//        val (fileNumber, errorNumber) = Pair(AtomicInteger(), AtomicInteger())
+//        fun report(fileName: String, errList: List<LintErrorWithCorrectionInfo>) {
+//            fileNumber.incrementAndGet()
+//            val errListLimit = minOf(errList.size, maxOf(limit - errorNumber.get(), 0))
+//            errorNumber.addAndGet(errListLimit)
+//            reporter.before(fileName)
+//            errList.head(errListLimit).forEach { (err, corrected) ->
+//                reporter.onLintError(
+//                    fileName,
+//                    if (!err.canBeAutoCorrected) err.copy(detail = err.detail + " (cannot be auto-corrected)") else err,
+//                    corrected
+//                )
+//            }
+//            reporter.after(fileName)
+//        }
+//        reporter.beforeAll()
+//        if (stdin) {
+//            report("<text>", process("<text>", String(System.`in`.readBytes())))
+//        } else {
+//            fileSequence()
+//                .takeWhile { errorNumber.get() < limit }
+//                .map { file -> Callable { file to process(file.path, file.readText()) } }
+//                .parallel({ (file, errList) -> report(file.location(), errList) })
+//        }
+//        reporter.afterAll()
+//        if (debug) {
+//            System.err.println("[DEBUG] ${
+//                System.currentTimeMillis() - start
+//            }ms / $fileNumber file(s) / $errorNumber error(s)")
+//        }
+//        if (tripped.get()) {
+//            exitProcess(1)
+//        }
     }
 
     private fun userDataResolver(): (String) -> Map<String, String> {
